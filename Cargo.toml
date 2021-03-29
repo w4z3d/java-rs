@@ -6,3 +6,4 @@ codegen-units = 1
 
 [workspace]
 members = ["java-rs-base", "java-rs-derive", "java-rs-pacific", "java-rs-tool"]
+indicatif = "0.15.0"

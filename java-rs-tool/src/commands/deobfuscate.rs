@@ -6,8 +6,11 @@ use zip::write::FileOptions;
 
 use java_rs_pacific::JavaClass;
 
+
 use crate::helpers::io::{create_buffered_reader, create_buffered_writer};
 use crate::helpers::obfuscation::{Mode, process_class, Options};
+use indicatif::{ProgressBar, ProgressStyle};
+use std::time::Duration;
 
 pub fn execute(input: &str, output: String, no_remap_instructions: bool, no_correct_strings: bool) {
     let deobfuscation_options = Options {
@@ -21,11 +24,19 @@ pub fn execute(input: &str, output: String, no_remap_instructions: bool, no_corr
     } else if input.ends_with(".jar") {
         let mut archive = ZipArchive::new(create_buffered_reader(input)).expect("cannot read jar file");
         let mut writer = ZipWriter::new(create_buffered_writer(output));
+        println!("Deobfuscating '{}' file-type: '{}' files: '{}'", input.split("/").last().unwrap().replace(".jar",""), format!("{} {}",input.split(".").last().unwrap(), "archive"), archive.len());
 
+        let total_size = archive.len();
+        let pb = ProgressBar::new(total_size as u64);
+        pb.set_style(ProgressStyle::default_bar()
+            .template("{msg}\n[{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} ({eta}) ")
+            .progress_chars("#>-"));
         for i in 0..archive.len() {
             let file = archive.by_index(i).expect("cannot read jar file entry");
             let name = file.name();
+            let new = i;
 
+            pb.set_position(i as u64);
             let options = FileOptions::default()
                 .compression_method(file.compression())
                 .last_modified_time(file.last_modified());
@@ -33,15 +44,16 @@ pub fn execute(input: &str, output: String, no_remap_instructions: bool, no_corr
             writer.start_file(name, options).expect("cannot start new jar file entry");
 
             if name.ends_with(".class") {
-                println!("Deobfuscate {}...", name);
+                pb.set_message(&format!("Deobfuscating {}...", name.split("/").last().unwrap()));
                 process_class(&deobfuscation_options, JavaClass::read(&mut BufReader::new(file)).expect("cannot read class file")).expect("cannot deobfuscate class file").write(&mut writer).expect("cannot write class file");
             } else {
-                println!("Copy {}...", name);
+                pb.set_message(&format!("Copying {}...", name.split("/").last().unwrap()));
                 io::copy(&mut BufReader::new(file), &mut writer).expect("cannot copy resource");
             }
         }
 
         writer.finish().expect("cannot finish new jar file");
+        pb.finish_with_message("Finished");
     } else {
         eprintln!("invalid input file extension");
         std::process::exit(1);
