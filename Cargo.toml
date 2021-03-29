@@ -1,0 +1,8 @@
+[profile.release]
+opt-level = 3
+lto = true
+panic = "abort"
+codegen-units = 1
+
+[workspace]
+members = ["java-rs-base", "java-rs-derive", "java-rs-pacific", "java-rs-tool"]
